@@ -44,7 +44,7 @@ This project demonstrates the use of data structures such as multidimensional li
 - **PDCurses Library**  
   The game uses the **PDCurses** library to handle the display of the maze on the console. Ensure PDCurses is installed.
   
-  **Setup for CLion (using MSYS2):**
+  **Setup for MinGW with MSYS2:**
   - Install MSYS2 and update the packages:
     ```bash
     pacman -Syu
@@ -58,6 +58,9 @@ This project demonstrates the use of data structures such as multidimensional li
     cd PDCurses/wincon
     mingw32-make -f Makefile
     ```
+    
+  **Setup for Clion/IDE with CmakeLists.txt**
+  
   - Set up your CMakeLists.txt to link PDCurses with your project:
     ```cmake
     find_library(CURSES_LIBRARIES pdcurses PATHS /path/to/PDCurses)
