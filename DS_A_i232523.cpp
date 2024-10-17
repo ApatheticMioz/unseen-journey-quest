@@ -81,8 +81,6 @@ public:
         }
     }
 
-
-
     void displayGridConsole() const {
         GridCell* currentRow = head;
         while (currentRow != nullptr) {
