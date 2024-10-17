@@ -53,6 +53,9 @@ This project demonstrates the use of data structures such as multidimensional li
     ```bash
     pacman -S mingw-w64-x86_64-toolchain base-devel
     ```
+    
+  **Building the library**
+
   - Compile PDCurses for MinGW:
     ```bash
     cd PDCurses/wincon
