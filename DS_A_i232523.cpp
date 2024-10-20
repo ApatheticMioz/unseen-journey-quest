@@ -156,12 +156,17 @@ class Grid {
     GridNode* head;
     int rows;
     int cols;
+    static int coinThresh;
+    static int bombThresh;
+    int xDoor, yDoor;
+    int xKey, yKey;
 
 public:
     Grid() {
         this->rows = 0;
         this->cols = 0;
         this->head = nullptr;
+        xDoor = yDoor = xKey = yKey = -1;
     }
 
     ~Grid() {
@@ -185,8 +190,77 @@ public:
         return head;
     }
 
+    static int getBombThresh(int rows, int cols) {
+        return static_cast<int>(rows * cols * 0.06);
+    }
+
+    static int getCoinThresh(int rows, int cols) {
+        return static_cast<int>(rows * cols * 0.09);
+    }
+
+    static void decCoinThresh() {
+        if (Grid::coinThresh >= 1)
+            Grid::coinThresh--;
+    }
+
+    int getRows() const {
+        return rows;
+    }
+
+    int getCols() const {
+        return cols;
+    }
+
+    GridNode* getKey() {
+        GridNode* currentRow = head;
+        int row = 0;
+
+        while (currentRow != nullptr) {
+            GridNode* currentCell = currentRow;
+            int col = 0;
+
+            while (currentCell != nullptr) {
+                if (row == xKey && col == yKey) {
+                    return currentCell;
+                }
+
+                currentCell = currentCell->right;
+                col++;
+            }
+
+            currentRow = currentRow->down;
+            row++;
+        }
+
+        return nullptr;
+    }
+
+    GridNode* getDoor() {
+        GridNode* currentRow = head;
+        int row = 0;
+
+        while (currentRow != nullptr) {
+            GridNode* currentCell = currentRow;
+            int col = 0;
+
+            while (currentCell != nullptr) {
+                if (row == xDoor && col == yDoor) {
+                    return currentCell;
+                }
+
+                currentCell = currentCell->right;
+                col++;
+            }
+
+            currentRow = currentRow->down;
+            row++;
+        }
+
+        return nullptr;
+    }
+
     void initGrid(const int difficulty) {
-        srand(time(0));
+        srand(time(nullptr));
 
         switch (difficulty) {
             case 1:
@@ -202,14 +276,14 @@ public:
                 exit(-1);
         }
 
+        coinThresh = getCoinThresh(rows, cols);
+        bombThresh = getBombThresh(rows, cols);
+
         GridNode* previousRow = nullptr;
         GridNode* currentRow = nullptr;
         GridNode* previousCell = nullptr;
 
-        int coinThresh = static_cast<int>(rows * cols * 0.09);
-        int bombThresh = static_cast<int>(rows * cols * 0.06);
-
-        int xDoor = rand() % 12 + 1, yDoor = rand() % 12 + 1, xKey = rand() % 12 + 1, yKey = rand() % 12 + 1;
+        xDoor = rand() % 12 + 1, yDoor = rand() % 12 + 1, xKey = rand() % 12 + 1, yKey = rand() % 12 + 1;
         while ((xDoor == 1 && yDoor == 1) || (xKey == 1 && yKey == 1)) {
             xDoor = rand() % 12 + 1;
             yDoor = rand() % 12 + 1;
@@ -234,10 +308,10 @@ public:
                         cell = 'D';
                     } else if (i == xKey && j == yKey) {
                         cell = 'K';
-                    } else if ((randomValue >= 30 && randomValue < 40 && bombCount < bombThresh) && (i != 2 && j != 1) && (i != 1 && j != 2)) {
+                    } else if ((randomValue >= 30 && randomValue < 40 && bombCount < Grid::bombThresh) && (i != 2 && j != 1) && (i != 1 && j != 2)) {
                         cell = 'B';
                         bombCount++;
-                    } else if (randomValue >= 85 && randomValue < 100 && coinCount < coinThresh) {
+                    } else if (randomValue >= 85 && randomValue < 100 && coinCount < Grid::coinThresh) {
                         cell = 'O';
                         coinCount++;
                     } else {
@@ -300,7 +374,7 @@ public:
                         break;
                     case 'K':
                         attron(COLOR_PAIR(5));
-                        addch(currentCell->value);
+                        addch('.'); // Key
                         attroff(COLOR_PAIR(5));
                         break;
                     case 'O':
@@ -315,7 +389,7 @@ public:
                         break;
                     case 'D':
                         attron(COLOR_PAIR(7));
-                        addch(currentCell->value);
+                        addch('.'); // Door
                         attroff(COLOR_PAIR(7));
                         break;
                     default:
@@ -332,14 +406,19 @@ public:
     }
 };
 
+int Grid::coinThresh = 0;
+int Grid::bombThresh = 0;
+
 class Game {
     Grid gameGrid;
     WINDOW* win;
     GridNode* player;
+    GridNode* key;
+    GridNode* door;
     Stack moves;
-    bool running;
+    bool running, gameOver, keyFound, gameWon;
     int winHeight, winWidth;
-    int coinThresh, bombThresh;
+    int score, movesRemaining, undoes;
 
 public:
     Game(const int rows, const int cols, int difficulty) {
@@ -378,9 +457,15 @@ public:
 
         player = gameGrid.getHead()->right->down;
         player->value = 'P';
+        key = gameGrid.getKey();
+        door = gameGrid.getDoor();
         running = true;
-        coinThresh = static_cast<int>(rows * cols * 0.09);
-        bombThresh = static_cast<int>(rows * cols * 0.06);
+        gameOver = false;
+        gameWon = false;
+        score = 0;
+        movesRemaining = 0; // TODO
+        undoes = 0; // TODO
+        keyFound = false;
     }
 
     ~Game() {
@@ -391,13 +476,49 @@ public:
     void run() {
         int iterations = 0;
         while (running) {
-            this->displayGame();
-            this->playerMove();
-            this->updateCoins(iterations);
-            iterations++;
+            if (!gameOver) {
+                this->displayGame();        // Display the game grid
+                this->playerMove();          // Handle player movement
+                this->updateCoins(iterations); // Update coins on the grid
+                iterations++;
 
-            if (iterations % 15 == 0) {
-                iterations = 0;
+                if (iterations % 15 == 0) {
+                    iterations = 0;
+                }
+            } else {
+                if (gameWon) {
+                    clear();
+                    wclear(win);
+                    refresh();
+                    wrefresh(win);
+
+                    attron(COLOR_PAIR(1));
+                    mvprintw(0, 0, "%s", "Congratulations! You actually won!!!");
+                    mvprintw(1, 0, "%s", "You found the key and then found the door!!.");
+                    attroff(COLOR_PAIR(1));
+
+                    refresh();
+                    wrefresh(win);
+
+                    napms(9000);
+                    running = false;
+                } else {
+                    clear();
+                    wclear(win);
+                    refresh();
+                    wrefresh(win);
+
+                    attron(COLOR_PAIR(1));
+                    mvprintw(0, 0, "%s", "Congratulations! You have lost!");
+                    mvprintw(1, 0, "%s", "You ran into a bomb.");
+                    attroff(COLOR_PAIR(1));
+
+                    refresh();
+                    wrefresh(win);
+
+                    napms(9000);
+                    running = false;
+                }
             }
         }
     }
@@ -418,7 +539,7 @@ public:
                 while (currentCell != nullptr) {
                     int randomNum = rand() % 100 + 1;
 
-                    if (randomNum >= 85 && randomNum < 100 && currentCell->value != 'P' && currentCell->value != 'K' && currentCell->value != 'D' && currentCell->value != 'B' && currentCell->value != '#' && coinCount < coinThresh) {
+                    if (randomNum >= 85 && randomNum < 100 && currentCell->value != 'P' && currentCell->value != 'K' && currentCell->value != 'D' && currentCell->value != 'B' && currentCell->value != '#' && coinCount < Grid::getCoinThresh(gameGrid.getRows(), gameGrid.getCols())) {
                         currentCell->value = 'O';
                         coinCount++;
                     } else {
@@ -442,12 +563,40 @@ public:
 
         mvprintw(offsetRow, 0, "%s", "|\t|\t|");
         mvprintw(offsetRow, 25, "%s", "Mode: ");
+        switch (gameGrid.getRows()) {
+            case 10:
+                mvprintw(offsetRow, 31, "%s", "Easy.");
+                break;
+            case 15:
+                mvprintw(offsetRow, 31, "%s", "Medium.");
+                break;
+            case 20:
+                mvprintw(offsetRow, 31, "%s", "Hard.");
+                break;
+            default:
+                NULL;
+        }
 
         mvprintw(offsetRow + 2, 0, "%s", "Remaining moves: ");
+        mvprintw(offsetRow + 2, 16, "%2d", movesRemaining);
         mvprintw(offsetRow + 2, 25, "%s", "Remaining undoes: ");
-        mvprintw(offsetRow + 2, 50, "%s", "Score: ");
+        mvprintw(offsetRow + 2, 42, "%2d", undoes);
+        mvprintw(offsetRow + 2, 50, "%s", "Score:");
+        mvprintw(offsetRow + 2, 56, "%2d", score);
 
         mvprintw(offsetRow + 4, 0, "%s", "Hint: ");
+        mvprintw(offsetRow + 4, 50, "%s", "Key Status: ");
+        mvprintw(offsetRow + 4, 62, "%s", "                    ");
+        switch (keyFound) {
+            case false:
+                mvprintw(offsetRow + 4, 62, "%s", "Not found.");
+                break;
+            case true:
+                mvprintw(offsetRow + 4, 62, "%s", "Found.");
+                break;
+            default:
+                NULL;
+        }
 
         attroff(COLOR_PAIR(1));
 
@@ -465,25 +614,25 @@ public:
         }
 
         GridNode* previousCell = player;
-        char newCell;
+        GridNode* newCell;
 
         if (keyPress == KEY_UP && player->up->value != '#' && moves.peek() != 2) {
-            newCell = player->up->value;
+            newCell = player->up;
             player = player->up;
             moves.push(8);
         }
         else if (keyPress == KEY_LEFT && player->left->value != '#' && moves.peek() != 6) {
-            newCell = player->left->value;
+            newCell = player->left;
             player = player->left;
             moves.push(4);
         }
         else if (keyPress == KEY_RIGHT && player->right->value != '#' && moves.peek() != 4) {
-            newCell = player->right->value;
+            newCell = player->right;
             player = player->right;
             moves.push(6);
         }
         else if (keyPress == KEY_DOWN && player->down->value != '#' && moves.peek() != 8) {
-            newCell = player->down->value;
+            newCell = player->down;
             player = player->down;
             moves.push(2);
         }
@@ -493,6 +642,25 @@ public:
         }
         else {
             return;
+        }
+
+        if (key == player) {
+            keyFound = true;
+        }
+
+        if (door == player && keyFound) {
+            gameWon = true;
+            gameOver = true;
+        }
+
+        switch (player->value) {
+            case 'B':
+                gameOver = true;
+                break;
+            case 'O':
+                break;
+            default:
+                NULL;
         }
 
         player->value = 'P';
