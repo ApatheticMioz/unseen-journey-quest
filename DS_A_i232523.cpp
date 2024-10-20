@@ -536,9 +536,9 @@ public:
                         break;
                     }
                     case 'K': {
-                        attron(COLOR_PAIR(5));
+                        //attron(COLOR_PAIR(5));
                         addch('.'); // Key
-                        attroff(COLOR_PAIR(5));
+                        //attroff(COLOR_PAIR(5));
                         break;
                     }
                     case 'O': {
@@ -560,9 +560,9 @@ public:
                         break;
                     }
                     case 'D': {
-                        attron(COLOR_PAIR(7));
+                        //attron(COLOR_PAIR(7));
                         addch('.'); // Door
-                        attroff(COLOR_PAIR(7));
+                        //attroff(COLOR_PAIR(7));
                         break;
                     }
                     default: {
@@ -801,9 +801,6 @@ public:
             startX = keyX;
             startY = keyY;
         }
-
-        std::cout << "Player: (" << startX << "," << startY << ") ";
-        std::cout << "Target (Key/Door): (" << targetX << "," << targetY << ")" << std::endl;
 
         /*mvprintw(0, 0, "%3d", startX);
         mvprintw(1, 0, "%3d", startY);
