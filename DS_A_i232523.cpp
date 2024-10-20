@@ -596,7 +596,7 @@ class Game {
     GridNode* door;
     Stack movesMade;
     Queue itemsCollected;
-    bool running, gameOver, keyFound, gameWon;
+    bool running, gameOver, keyFound, gameWon, movedCloser;
     int winHeight, winWidth;
     int score, movesRemaining, undoes;
 
@@ -618,8 +618,9 @@ public:
         running = true;
         gameOver = false;
         gameWon = false;
+        movedCloser = false;
         score = 0;
-        movesRemaining = distance(player, key, door, 0) + distance(player, key, door, 2);
+        movesRemaining = distanceP(player, key, door, 0) + distanceP(player, key, door, 2);
         undoes = 0;
         keyFound = false;
     }
@@ -771,7 +772,7 @@ public:
         }
     }
 
-    int distance(const GridNode* player, const GridNode* key, const GridNode* door, const int mode) {
+    int distanceP(const GridNode* player, const GridNode* key, const GridNode* door, const int mode) {
         int startX = 0, startY = 0;
         int targetX = 0, targetY = 0;
         int keyX = 0, keyY = 0;
@@ -814,6 +815,27 @@ public:
         mvprintw(3, 0, "%3d", targetY);*/
 
         return abs(startX - targetX - 2) + abs(startY - targetY - 2);
+    }
+
+    int distance(const GridNode* player, const GridNode* node) {
+        int startX = 0, startY = 0;
+        int targetX = 0, targetY = 0;
+
+        for (int i = 1; i < 15; i++) {
+            for (int j = 1; j < 15; j++) {
+                if (player == gameGrid.getNode(i, j)) {
+                    startX = i;
+                    startY = j;
+                }
+
+                if (node == gameGrid.getNode(i, j)) {
+                    targetX = i;
+                    targetY = j;
+                }
+            }
+        }
+
+        return abs(targetX - startX) + abs(targetY - startY);
     }
 
     void updateCoins(int &iterations) {
@@ -882,7 +904,7 @@ public:
                 NULL;
         }
 
-        iterations++;
+
 
         mvprintw(offsetRow + 2, 0, "%s", "Remaining moves: ");
         mvprintw(offsetRow + 2, 16, "%2d", movesRemaining);
@@ -892,6 +914,15 @@ public:
         mvprintw(offsetRow + 2, 56, "%2d", score);
 
         mvprintw(offsetRow + 4, 0, "%s", "Hint: ");
+        mvprintw(offsetRow + 4, 7, "%s", "                    ");
+        if (!movedCloser && iterations != 0) {
+            mvprintw(offsetRow + 4, 7, "%s", "Moving Closer");
+        } else if (iterations != 0) {
+            mvprintw(offsetRow + 4, 7, "%s", "Moving away");
+        }
+
+        iterations++;
+
         mvprintw(offsetRow + 4, 50, "%s", "Key Status: ");
         mvprintw(offsetRow + 4, 62, "%s", "                    ");
 
@@ -992,6 +1023,24 @@ public:
                 break;
             default:
                 NULL;
+        }
+
+        if (!keyFound) {
+            int differenceDistance = distance(player, key) - distance(previousCell, key);
+
+            if (differenceDistance < 0) {
+                movedCloser = false;
+            } else {
+                movedCloser = true;
+            }
+        } else {
+            int differenceDistance = distance(player, door) - distance(previousCell, door);
+
+            if (differenceDistance < 0) {
+                movedCloser = false;
+            } else {
+                movedCloser = true;
+            }
         }
 
         player->value = 'P';
