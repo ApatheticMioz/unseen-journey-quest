@@ -13,6 +13,129 @@
 #include <chrono>
 using namespace std;
 
+class Node {
+public:
+    int data;
+    Node* next;
+
+    Node(const int d) {
+        this->data = d;
+        this->next = nullptr;
+    }
+};
+
+class Stack {
+    Node* head;
+
+public:
+    Stack() {
+        head = nullptr;
+    }
+
+    ~Stack() {
+        while (head != nullptr) {
+            Node* temp = head;
+            head = head->next;
+            delete temp;
+        }
+    }
+
+    bool isEmpty() const {
+        return head == nullptr;
+    }
+
+    void push(const int x) {
+        Node* temp = new Node(x);
+        temp->next = head;
+        head = temp;
+    }
+
+    void pop() {
+        if (isEmpty()) {
+            return;
+        }
+
+        Node* temp = head;
+        head = head->next;
+        delete temp;
+    }
+
+    int peek() const {
+        if (!isEmpty()) {
+            return head->data;
+        }
+
+        return -1;
+    }
+};
+
+class Queue {
+    Node* front;
+    Node* rear;
+
+public:
+    Queue() {
+        front = nullptr;
+        rear = nullptr;
+    }
+
+    ~Queue() {
+        while (front != nullptr) {
+            Node* temp = front;
+            front = front->next;
+            delete temp;
+        }
+    }
+
+    bool isEmpty() const {
+        return front == nullptr;
+    }
+
+    void enqueue(const int x) {
+        Node* temp = new Node(x);
+
+        if (isEmpty()) {
+            front = temp;
+            rear = temp;
+            return;
+        }
+
+        rear->next = temp;
+        rear = temp;
+    }
+
+    void dequeue() {
+        if (isEmpty()) {
+            return;
+        }
+
+        Node* temp = front;
+        front = front->next;
+
+        if (isEmpty()) {
+            rear = nullptr;
+        }
+
+        delete temp;
+    }
+
+    int getFront() const {
+        if (isEmpty()) {
+            return -1;
+        }
+
+        return front->data;
+    }
+
+    int getRear() const {
+        if (isEmpty()) {
+            return -1;
+        }
+
+        return rear->data;
+    }
+};
+
 class GridNode {
 public:
     char value;
@@ -158,15 +281,17 @@ public:
 
 class Game {
     Grid gameGrid;
-    int winHeight, winWidth;
     WINDOW* win;
     GridNode* player;
+    Stack moves;
     bool running;
+    int winHeight, winWidth;
 
 public:
     Game(const int rows, const int cols) : gameGrid(rows, cols) {
         gameGrid.initGrid();
-        winHeight = winWidth = 50;
+        winHeight = 100;
+        winWidth = 50;
         win = newwin(winHeight, winWidth, 0, 0);
         player = gameGrid.getHead()->right->down;
         player->value = 'P';
@@ -203,154 +328,69 @@ public:
 
         gameGrid.displayGrid(player);
         wrefresh(win);
+
     }
 
     void playerMove() {
         int keyPress = getch();
 
-        if (keyPress == 'q') {
+        if (keyPress == 'q' || keyPress == 'Q') {
             running = false;
             return;
         }
 
         GridNode* previousCell = player;
 
-        if (keyPress == KEY_UP && player->up->value != '#')
+        if (keyPress == KEY_UP && player->up->value != '#') {
             player = player->up;
-        else if (keyPress == KEY_LEFT && player->left->value != '#')
+            moves.push(8);
+        }
+        else if (keyPress == KEY_LEFT && player->left->value != '#') {
             player = player->left;
-        else if (keyPress == KEY_RIGHT && player->right->value != '#')
+            moves.push(4);
+        }
+        else if (keyPress == KEY_RIGHT && player->right->value != '#') {
             player = player->right;
-        else if (keyPress == KEY_DOWN && player->down->value != '#')
+            moves.push(6);
+        }
+        else if (keyPress == KEY_DOWN && player->down->value != '#') {
             player = player->down;
-        else
+            moves.push(2);
+        }
+        else if (keyPress == 'u' || keyPress == 'U') {
+            undo();
+        }
+        else {
             return;
+        }
 
         player->value = 'P';
         previousCell->value = '.';
     }
-};
 
-class Node {
-public:
-    int data;
-    Node* next;
+    void undo() {
+        GridNode* previousCell = player;
 
-    Node(const int d) {
-        this->data = d;
-        this->next = nullptr;
-    }
-};
-
-class Stack {
-    Node* head;
-
-public:
-    Stack() {
-        head = nullptr;
-    }
-
-    ~Stack() {
-        while (head != nullptr) {
-            Node* temp = head;
-            head = head->next;
-            delete temp;
-        }
-    }
-
-    bool isEmpty() const {
-        return head == nullptr;
-    }
-
-    void push(const int x) {
-        Node* temp = new Node(x);
-        temp->next = head;
-        head = temp;
-    }
-
-    void pop() {
-        if (isEmpty()) {
+        switch (moves.peek()) {
+        case 8:
+            player = player->down;
+            break;
+        case 4:
+            player = player->right;
+            break;
+        case 6:
+            player = player->left;
+            break;
+        case 2:
+            player = player->up;
+            break;
+        default:
             return;
         }
 
-        Node* temp = head;
-        head = head->next;
-        delete temp;
-    }
-
-    int peek() const {
-        if (!isEmpty()) {
-            return head->data;
-        }
-
-        return -1;
-    }
-};
-
-class Queue {
-    Node* front;
-    Node* rear;
-
-public:
-    Queue() {
-        front = nullptr;
-        rear = nullptr;
-    }
-
-    ~Queue() {
-        while (front != nullptr) {
-            Node* temp = front;
-            front = front->next;
-            delete temp;
-        }
-    }
-
-    bool isEmpty() const {
-        return front == nullptr;
-    }
-
-    void enqueue(const int x) {
-        Node* temp = new Node(x);
-
-        if (isEmpty()) {
-            front = temp;
-            rear = temp;
-            return;
-        }
-
-        rear->next = temp;
-        rear = temp;
-    }
-
-    void dequeue() {
-        if (isEmpty()) {
-            return;
-        }
-
-        Node* temp = front;
-        front = front->next;
-
-        if (isEmpty()) {
-            rear = nullptr;
-        }
-
-        delete temp;
-    }
-
-    int getFront() const {
-        if (isEmpty()) {
-            return -1;
-        }
-
-        return front->data;
-    }
-
-    int getRear() const {
-        if (isEmpty()) {
-            return -1;
-        }
-
-        return rear->data;
+        player->value = 'P';
+        previousCell->value = '.';
+        moves.pop();
     }
 };
 
