@@ -12,15 +12,15 @@
 #include <curses.h>
 using namespace std;
 
-class GridCell {
+class GridNode {
 public:
     char value;
-    GridCell* right;
-    GridCell* left;
-    GridCell* down;
-    GridCell* up;
+    GridNode* right;
+    GridNode* left;
+    GridNode* down;
+    GridNode* up;
 
-    GridCell(const char v) {
+    GridNode(const char v) {
         this->value = v;
         right = nullptr;
         left = nullptr;
@@ -30,7 +30,7 @@ public:
 };
 
 class Grid {
-    GridCell* head;
+    GridNode* head;
     int rows;
     int cols;
 
@@ -42,15 +42,19 @@ public:
     }
 
     void initGrid() {
-        GridCell* previousRow = nullptr;
-        GridCell* currentRow = nullptr;
-        GridCell* previousCell = nullptr;
+        GridNode* previousRow = nullptr;
+        GridNode* currentRow = nullptr;
+        GridNode* previousCell = nullptr;
 
         for (int i = 0; i < rows; i++) {
             previousCell = nullptr;
             for (int j = 0; j < cols; j++) {
 
-                GridCell* newCell = new GridCell((i == 0 || i == rows - 1 || j == 0 || j == cols - 1) ? '#' : '.');
+                GridNode* newCell = new GridNode((i == 0 || i == rows - 1 || j == 0 || j == cols - 1) ? '#' : '.');
+
+                if (i == 0 && j == 0) {
+                    head = newCell;
+                }
 
                 if (previousCell) {
                     previousCell->right = newCell;
@@ -59,17 +63,13 @@ public:
                 previousCell = newCell;
 
                 if (previousRow) {
-                    GridCell* above = previousRow;
+                    GridNode* above = previousRow;
 
                     for (int k = 0; k < j; k++) {
                         above = above->right;
                     }
                     above->down = newCell;
                     newCell->up = above;
-                }
-
-                if (i == 0 && j == 0) {
-                    head = newCell;
                 }
 
                 if (j == 0) {
@@ -82,29 +82,86 @@ public:
     }
 
     void displayGridConsole() const {
-        GridCell* currentRow = head;
+        GridNode* currentRow = head;
         while (currentRow != nullptr) {
-            GridCell* currentCell = currentRow;
+            GridNode* currentCell = currentRow;
+
             while (currentCell != nullptr) {
                 cout << currentCell->value;
                 currentCell = currentCell->right;
             }
+
             cout << endl;
             currentRow = currentRow->down;
         }
     }
 
-    void displayGrid(WINDOW* window) const {
-        GridCell* currentRow = head;
+    void displayGrid(int offset) const {
+        GridNode* currentRow = head;
+        int row = offset;
+
         while (currentRow != nullptr) {
-            GridCell* currentCell = currentRow;
+            GridNode* currentCell = currentRow;
+            int col = 0;
+
             while (currentCell != nullptr) {
-                wprintw(window, &currentCell->value);
+                if (currentCell->value == '#') {
+                    attron(COLOR_PAIR(1));
+                    mvprintw(row, col, "%c", currentCell->value);
+                    attroff(COLOR_PAIR(1));
+                } else {
+                    attron(COLOR_PAIR(2));
+                    mvprintw(row, col, "%c", currentCell->value);
+                    attroff(COLOR_PAIR(2));
+                }
+
                 currentCell = currentCell->right;
+                col += 2;
             }
-            wprintw(window, "\n");
+
             currentRow = currentRow->down;
+            row++;
         }
+    }
+};
+
+class Game {
+    Grid gameGrid;
+    int winHeight, winWidth;
+    WINDOW* win;
+
+public:
+    Game(const int rows, const int cols) : gameGrid(rows, cols) {
+        gameGrid.initGrid();
+        winHeight = winWidth = 50;
+        win = newwin(winHeight, winWidth, 0, 0);
+    }
+
+    void displayGame() const {
+        attron(COLOR_PAIR(1));
+
+        int offsetRow = 0;
+
+        mvprintw(offsetRow, 0, "%s", "|\t|\t|");
+        mvprintw(offsetRow, 25, "%s", "Mode: ");
+
+        mvprintw(offsetRow + 2, 0, "%s", "Remaining moves: ");
+        mvprintw(offsetRow + 2, 25, "%s", "Remaining undoes: ");
+        mvprintw(offsetRow + 2, 50, "%s", "Score: ");
+
+        mvprintw(offsetRow + 4, 0, "%s", "Hint: ");
+
+        attroff(COLOR_PAIR(1));
+
+        gameGrid.displayGrid(6);
+        wrefresh(win);
+
+        getch();
+    }
+
+    ~Game() {
+        delwin(win);
+        endwin();
     }
 };
 
@@ -236,25 +293,15 @@ int main() {
     noecho();
     cbreak();
     curs_set(0);
+    start_color();
 
-    int window_height = 17;
-    int window_width = 17;
+    init_pair(1, COLOR_YELLOW, COLOR_BLACK);  // Yellow boundary + text
+    init_pair(2, COLOR_GREEN, COLOR_BLACK);   // Green cells
 
-    WINDOW* win = newwin(window_height, window_width, 0, 0);
+    int rows = 15, cols = 15;
+    Game game(rows, cols);
 
-    Grid gameGrid(15, 15);
-    gameGrid.initGrid();
-    gameGrid.displayGridConsole();
-
-    wmove(win, 1, 1);
-
-    gameGrid.displayGrid(win);
-
-    wrefresh(win);
-
-    getch();
-    endwin();
+    game.displayGame();
 
     return 0;
 }
-
