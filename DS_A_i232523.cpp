@@ -494,8 +494,8 @@ public:
         int startX = 0, startY = 0;
         int targetX = 0, targetY = 0;
 
-        for (int i = 1; i < 15; i++) {
-            for (int j = 1; j < 15; j++) {
+        for (int i = 1; i < rows; i++) {
+            for (int j = 1; j < cols; j++) {
                 if (player == getNode(i, j)) {
                     startX = i;
                     startY = j;
@@ -511,7 +511,7 @@ public:
         return abs(targetX - startX) + abs(targetY - startY);
     }
 
-    void displayGrid(GridNode* player) {
+    void displayGrid(GridNode* player, bool mode) {
         GridNode* currentRow = head;
         int row = 6;
 
@@ -536,9 +536,14 @@ public:
                         break;
                     }
                     case 'K': {
-                        //attron(COLOR_PAIR(5));
-                        addch('.'); // Key
-                        //attroff(COLOR_PAIR(5));
+                        if (mode == 0){
+                            addch('.'); // Key
+                        } else {
+                            attron(COLOR_PAIR(5));
+                            addch('K');
+                            attroff(COLOR_PAIR(5));
+                        }
+
                         break;
                     }
                     case 'O': {
@@ -548,10 +553,17 @@ public:
                         break;
                     }
                     case 'B': {
-                        int distanceVal = distance(player, currentCell);
+                        if (mode == 0)
+                        {
+                            int distanceVal = distance(player, currentCell);
 
-                        if (distanceVal > static_cast<int>(rows * 0.3)) {
-                            addch('.');
+                            if (distanceVal > static_cast<int>(rows * 0.3)) {
+                                addch('.');
+                            } else {
+                                attron(COLOR_PAIR(6));
+                                addch('B');
+                                attroff(COLOR_PAIR(6));
+                            }
                         } else {
                             attron(COLOR_PAIR(6));
                             addch('B');
@@ -560,9 +572,14 @@ public:
                         break;
                     }
                     case 'D': {
-                        //attron(COLOR_PAIR(7));
-                        addch('.'); // Door
-                        //attroff(COLOR_PAIR(7));
+                        if (mode == 0){
+                            addch('.'); // Key
+                        } else {
+                            attron(COLOR_PAIR(7));
+                            addch('D');
+                            attroff(COLOR_PAIR(7));
+                        }
+
                         break;
                     }
                     default: {
@@ -698,7 +715,7 @@ public:
                     mvprintw(1, 0, "%s", "You found the key and then found the door!!");
                     attroff(COLOR_PAIR(1));
 
-                    copyGame.displayGrid(copyGame.getHead()->right->down);
+                    copyGame.displayGrid(copyGame.getHead()->right->down, true);
 
                     attron(COLOR_PAIR(1));
                     mvprintw(26, 0, "%s", "Initial game state.");
@@ -724,7 +741,7 @@ public:
                         mvprintw(2, 0, "Score: %3d", score);
                         attroff(COLOR_PAIR(1));
 
-                        copyGame.displayGrid(copyGame.getHead()->right->down);
+                        copyGame.displayGrid(copyGame.getHead()->right->down, true);
 
                         attron(COLOR_PAIR(1));
                         mvprintw(26, 0, "%s", "Initial game state.");
@@ -749,7 +766,7 @@ public:
                         mvprintw(2, 0, "Score: %3d", score);
                         attroff(COLOR_PAIR(1));
 
-                        copyGame.displayGrid(copyGame.getHead()->right->down);
+                        copyGame.displayGrid(copyGame.getHead()->right->down, true);
 
                         attron(COLOR_PAIR(1));
                         mvprintw(26, 0, "%s", "Initial game state.");
@@ -932,7 +949,7 @@ public:
 
         attroff(COLOR_PAIR(1));
 
-        gameGrid.displayGrid(player);
+        gameGrid.displayGrid(player, false);
         wrefresh(win);
 
     }
@@ -1040,6 +1057,10 @@ public:
         player->value = 'P';
         previousCell->value = '.';
         movesRemaining--;
+
+        if (movesRemaining == 0) {
+            gameOver = true;
+        }
     }
 
     void undo() {
