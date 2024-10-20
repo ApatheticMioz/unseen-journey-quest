@@ -10,6 +10,7 @@
 
 #include <iostream>
 #include <curses.h>
+#include <chrono>
 using namespace std;
 
 class GridNode {
@@ -126,25 +127,24 @@ public:
             int col = 14;
 
             while (currentCell != nullptr) {
+                move(row, col);
+
                 switch (currentCell->value) {
                 case '#':
                     attron(COLOR_PAIR(1));
-                    mvprintw(row, col, "%c", currentCell->value);
+                    addch(currentCell->value);
+                    attroff(COLOR_PAIR(1));
                     break;
-
                 case 'P':
                     attron(COLOR_PAIR(3));
-                    mvprintw(row, col, "%c", currentCell->value);
+                    addch(currentCell->value);
+                    attroff(COLOR_PAIR(3));
                     break;
-
                 default:
                     attron(COLOR_PAIR(2));
-                    mvprintw(row, col, "%c", currentCell->value);
+                    addch(currentCell->value);
+                    attroff(COLOR_PAIR(2));
                 }
-
-                attroff(COLOR_PAIR(1));
-                attroff(COLOR_PAIR(3));
-                attroff(COLOR_PAIR(2));
 
                 currentCell = currentCell->right;
                 col += 2;
@@ -173,13 +173,15 @@ public:
         running = true;
     }
 
+    ~Game() {
+        delwin(win);
+        endwin();
+    }
+
     void run() {
         while (running) {
             this->displayGame();
-
-            if (getch() == 'q') {
-                running = false;
-            }
+            this->playerMove();
         }
     }
 
@@ -201,17 +203,31 @@ public:
 
         gameGrid.displayGrid(player);
         wrefresh(win);
-
-        getch();
     }
 
-    void playerMove() const {
+    void playerMove() {
+        int keyPress = getch();
 
-    }
+        if (keyPress == 'q') {
+            running = false;
+            return;
+        }
 
-    ~Game() {
-        delwin(win);
-        endwin();
+        GridNode* previousCell = player;
+
+        if (keyPress == KEY_UP && player->up->value != '#')
+            player = player->up;
+        else if (keyPress == KEY_LEFT && player->left->value != '#')
+            player = player->left;
+        else if (keyPress == KEY_RIGHT && player->right->value != '#')
+            player = player->right;
+        else if (keyPress == KEY_DOWN && player->down->value != '#')
+            player = player->down;
+        else
+            return;
+
+        player->value = 'P';
+        previousCell->value = '.';
     }
 };
 
@@ -344,9 +360,10 @@ int main() {
     cbreak();
     curs_set(0);
     start_color();
+    keypad(stdscr, TRUE);
 
-    init_pair(1, COLOR_YELLOW, COLOR_BLACK);  // Yellow boundary + text
-    init_pair(2, COLOR_GREEN, COLOR_BLACK);   // Green cells
+    init_pair(1, COLOR_GREEN, COLOR_BLACK);  // Yellow boundary + text
+    init_pair(2, COLOR_WHITE, COLOR_BLACK);   // Cells
     init_pair(3, COLOR_MAGENTA, COLOR_BLACK); // Player
 
     int rows = 15, cols = 15;
