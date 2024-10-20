@@ -10,6 +10,7 @@
 #include <curses.h>
 #include <stdlib.h>
 #include <ctime>
+#include <iostream>
 using namespace std;
 
 class Node {
@@ -68,9 +69,24 @@ public:
     }
 };
 
+class NodeQueue {
+public:
+    int x;
+    int y;
+    char ch;
+    NodeQueue* next;
+
+    NodeQueue(const int x, const int y, const char ch) {
+        this->x = x;
+        this->y = y;
+        this->ch = ch;
+        this->next = nullptr;
+    }
+};
+
 class Queue {
-    Node* front;
-    Node* rear;
+    NodeQueue* front;
+    NodeQueue* rear;
 
 public:
     Queue() {
@@ -80,7 +96,7 @@ public:
 
     ~Queue() {
         while (front != nullptr) {
-            Node* temp = front;
+            NodeQueue* temp = front;
             front = front->next;
             delete temp;
         }
@@ -90,8 +106,8 @@ public:
         return front == nullptr;
     }
 
-    void enqueue(const int x) {
-        Node* temp = new Node(x);
+    void enqueue(const int x, const int y, const char ch) {
+        NodeQueue* temp = new NodeQueue(x, y, ch);
 
         if (isEmpty()) {
             front = temp;
@@ -108,7 +124,7 @@ public:
             return;
         }
 
-        Node* temp = front;
+        NodeQueue* temp = front;
         front = front->next;
 
         if (isEmpty()) {
@@ -118,20 +134,52 @@ public:
         delete temp;
     }
 
-    int getFront() const {
+    int getFrontX() const {
         if (isEmpty()) {
             return -1;
         }
 
-        return front->data;
+        return front->x;
     }
 
-    int getRear() const {
+    int getFrontY() const {
         if (isEmpty()) {
             return -1;
         }
 
-        return rear->data;
+        return front->y;
+    }
+
+    char getFrontCh() const {
+        if (isEmpty()) {
+            return -1;
+        }
+
+        return front->ch;
+    }
+
+    int getRearX() const {
+        if (isEmpty()) {
+            return -1;
+        }
+
+        return rear->x;
+    }
+
+    int getRearY() const {
+        if (isEmpty()) {
+            return -1;
+        }
+
+        return rear->y;
+    }
+
+    char getRearCh() const {
+        if (isEmpty()) {
+            return -1;
+        }
+
+        return rear->ch;
     }
 };
 
@@ -145,6 +193,14 @@ public:
 
     GridNode(const char v) {
         this->value = v;
+        right = nullptr;
+        left = nullptr;
+        down = nullptr;
+        up = nullptr;
+    }
+
+    GridNode(const GridNode& other) {
+        value = other.value;
         right = nullptr;
         left = nullptr;
         down = nullptr;
@@ -167,6 +223,67 @@ public:
         this->cols = 0;
         this->head = nullptr;
         xDoor = yDoor = xKey = yKey = -1;
+    }
+
+    Grid& operator=(const Grid& other) {
+        if (this == &other) {
+            return *this;
+        }
+
+        this->~Grid();
+
+        this->rows = other.rows;
+        this->cols = other.cols;
+        this->xDoor = other.xDoor;
+        this->yDoor = other.yDoor;
+        this->xKey = other.xKey;
+        this->yKey = other.yKey;
+
+        GridNode* otherRow = other.head;
+        GridNode* previousRow = nullptr;
+
+        while (otherRow != nullptr) {
+            GridNode* otherCell = otherRow;
+            GridNode* newCell = nullptr;
+            GridNode* previousCell = nullptr;
+            GridNode* newRowHead = nullptr;
+
+            while (otherCell != nullptr) {
+
+                newCell = new GridNode(otherCell->value);
+
+                if (this->head == nullptr) {
+                    this->head = newCell;
+                }
+
+                if (newRowHead == nullptr) {
+                    newRowHead = newCell;
+                }
+
+                if (previousCell != nullptr) {
+                    previousCell->right = newCell;
+                    newCell->left = previousCell;
+                }
+
+                if (previousRow != nullptr) {
+                    GridNode* above = previousRow;
+
+                    while (above->right != nullptr && otherCell != otherRow) {
+                        above = above->right;
+                    }
+                    above->down = newCell;
+                    newCell->up = above;
+                }
+
+                previousCell = newCell;
+                otherCell = otherCell->right;
+            }
+
+            previousRow = newRowHead;
+            otherRow = otherRow->down;
+        }
+
+        return *this;
     }
 
     ~Grid() {
@@ -411,11 +528,13 @@ int Grid::bombThresh = 0;
 
 class Game {
     Grid gameGrid;
+    Grid copyGame;
     WINDOW* win;
     GridNode* player;
     GridNode* key;
     GridNode* door;
-    Stack moves;
+    Stack movesMade;
+    Queue itemsCollected;
     bool running, gameOver, keyFound, gameWon;
     int winHeight, winWidth;
     int score, movesRemaining, undoes;
@@ -426,6 +545,30 @@ public:
         winWidth = 50;
         win = newwin(winHeight, winWidth, 0, 0);
 
+        displayMenu(win, difficulty);
+
+        gameGrid.initGrid(difficulty);
+        copyGame = gameGrid;
+        wrefresh(win);
+        player = gameGrid.getHead()->right->down;
+        player->value = 'P';
+        key = gameGrid.getKey();
+        door = gameGrid.getDoor();
+        running = true;
+        gameOver = false;
+        gameWon = false;
+        score = 0;
+        movesRemaining = 0; // TODO
+        undoes = 0; // TODO
+        keyFound = false;
+    }
+
+    ~Game() {
+        delwin(win);
+        endwin();
+    }
+
+    void displayMenu(WINDOW* win, int &difficulty) {
         attron(COLOR_PAIR(1));
         mvprintw(0, 0, "%s", "Choose your difficulty.");
         mvprintw(1, 0, "%s", "1 - Easy.");
@@ -447,30 +590,32 @@ public:
                 break;
             default:
                 difficulty = -1;
-                beep();
+            beep();
         }
 
         clear();
         wrefresh(win);
-
-        gameGrid.initGrid(difficulty);
-
-        player = gameGrid.getHead()->right->down;
-        player->value = 'P';
-        key = gameGrid.getKey();
-        door = gameGrid.getDoor();
-        running = true;
-        gameOver = false;
-        gameWon = false;
-        score = 0;
-        movesRemaining = 0; // TODO
-        undoes = 0; // TODO
-        keyFound = false;
     }
 
-    ~Game() {
-        delwin(win);
-        endwin();
+    void displayItems(Queue& itemQueue) {
+        int index = 0;
+
+        if (itemQueue.isEmpty()) {
+            mvprintw(24, 0, "No items collected.");
+            return;
+        }
+
+        mvprintw(0, 60, "Items collected:");
+
+        while (!itemQueue.isEmpty()) {
+            int x = itemQueue.getFrontX();
+            int y = itemQueue.getFrontY();
+            char ch = itemQueue.getFrontCh();
+
+            mvprintw(1 + index, 60, "Item %d: (%2d, %2d, '%c')", index + 1, y - 1, x - 2, ch);
+            itemQueue.dequeue();
+            index++;
+        }
     }
 
     void run() {
@@ -494,13 +639,21 @@ public:
 
                     attron(COLOR_PAIR(1));
                     mvprintw(0, 0, "%s", "Congratulations! You actually won!!!");
-                    mvprintw(1, 0, "%s", "You found the key and then found the door!!.");
+                    mvprintw(1, 0, "%s", "You found the key and then found the door!!");
+                    attroff(COLOR_PAIR(1));
+
+                    copyGame.displayGrid(copyGame.getHead()->right->down);
+
+                    attron(COLOR_PAIR(1));
+                    mvprintw(22, 0, "%s", "Initial game state.");
+                    mvprintw(24, 0, "%s", "Press any key to exit.");
+                    displayItems(itemsCollected);
                     attroff(COLOR_PAIR(1));
 
                     refresh();
                     wrefresh(win);
 
-                    napms(9000);
+                    getch();
                     running = false;
                 } else {
                     clear();
@@ -513,10 +666,18 @@ public:
                     mvprintw(1, 0, "%s", "You ran into a bomb.");
                     attroff(COLOR_PAIR(1));
 
+                    copyGame.displayGrid(copyGame.getHead()->right->down);
+
+                    attron(COLOR_PAIR(1));
+                    mvprintw(22, 0, "%s", "Initial game state.");
+                    mvprintw(24, 0, "%s", "Press any key to exit.");
+                    displayItems(itemsCollected);
+                    attroff(COLOR_PAIR(1));
+
                     refresh();
                     wrefresh(win);
 
-                    napms(9000);
+                    getch();
                     running = false;
                 }
             }
@@ -587,6 +748,7 @@ public:
         mvprintw(offsetRow + 4, 0, "%s", "Hint: ");
         mvprintw(offsetRow + 4, 50, "%s", "Key Status: ");
         mvprintw(offsetRow + 4, 62, "%s", "                    ");
+
         switch (keyFound) {
             case false:
                 mvprintw(offsetRow + 4, 62, "%s", "Not found.");
@@ -614,27 +776,22 @@ public:
         }
 
         GridNode* previousCell = player;
-        GridNode* newCell;
 
-        if (keyPress == KEY_UP && player->up->value != '#' && moves.peek() != 2) {
-            newCell = player->up;
+        if (keyPress == KEY_UP && player->up->value != '#' && movesMade.peek() != 2) {
             player = player->up;
-            moves.push(8);
+            movesMade.push(8);
         }
-        else if (keyPress == KEY_LEFT && player->left->value != '#' && moves.peek() != 6) {
-            newCell = player->left;
+        else if (keyPress == KEY_LEFT && player->left->value != '#' && movesMade.peek() != 6) {
             player = player->left;
-            moves.push(4);
+            movesMade.push(4);
         }
-        else if (keyPress == KEY_RIGHT && player->right->value != '#' && moves.peek() != 4) {
-            newCell = player->right;
+        else if (keyPress == KEY_RIGHT && player->right->value != '#' && movesMade.peek() != 4) {
             player = player->right;
-            moves.push(6);
+            movesMade.push(6);
         }
-        else if (keyPress == KEY_DOWN && player->down->value != '#' && moves.peek() != 8) {
-            newCell = player->down;
+        else if (keyPress == KEY_DOWN && player->down->value != '#' && movesMade.peek() != 8) {
             player = player->down;
-            moves.push(2);
+            movesMade.push(2);
         }
         else if (keyPress == 'u' || keyPress == 'U') {
             undo();
@@ -644,13 +801,40 @@ public:
             return;
         }
 
-        if (key == player) {
-            keyFound = true;
-        }
+        if (player->value == 'O' || key == player || (door == player && keyFound)) {
+            int xCoord = 0, yCoord = 0;
+            char ch;
 
-        if (door == player && keyFound) {
-            gameWon = true;
-            gameOver = true;
+            if (player->value == 'O') {
+                ch = 'O';
+                score += 2;
+                undoes++;
+            } else if (key == player) {
+                keyFound = true;
+                ch = 'K';
+            } else if (door == player && keyFound) {
+                gameWon = true;
+                gameOver = true;
+                ch = 'D';
+            }
+
+            GridNode* currentRow = gameGrid.getHead();
+            while (currentRow != nullptr) {
+                GridNode* currentCell = currentRow;
+                xCoord++;
+                yCoord = 0;
+                while (currentCell != nullptr) {
+                    if (currentCell == player) {
+                        itemsCollected.enqueue(xCoord, yCoord, ch);
+                        break;
+                    }
+
+                    yCoord++;
+                    currentCell = currentCell->right;
+                }
+
+                currentRow = currentRow->down;
+            }
         }
 
         switch (player->value) {
@@ -658,6 +842,7 @@ public:
                 gameOver = true;
                 break;
             case 'O':
+
                 break;
             default:
                 NULL;
@@ -670,7 +855,7 @@ public:
     void undo() {
         GridNode* previousCell = player;
 
-        switch (moves.peek()) {
+        switch (movesMade.peek()) {
             case 8:
                 player = player->down;
                 break;
@@ -689,7 +874,7 @@ public:
 
         player->value = 'P';
         previousCell->value = '.';
-        moves.pop();
+        movesMade.pop();
     }
 };
 
