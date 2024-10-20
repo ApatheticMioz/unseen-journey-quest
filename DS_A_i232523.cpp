@@ -41,6 +41,27 @@ public:
         this->head = nullptr;
     }
 
+    ~Grid() {
+        GridNode* currentRow = head;
+        while (currentRow != nullptr) {
+            GridNode* currentCell = currentRow;
+
+            while (currentCell != nullptr) {
+                GridNode* temp = currentCell;
+                currentCell = currentCell->right;
+                delete temp;
+            }
+
+            currentRow = currentRow->down;
+        }
+
+        head = nullptr;
+    }
+
+    GridNode* getHead() const {
+        return head;
+    }
+
     void initGrid() {
         GridNode* previousRow = nullptr;
         GridNode* currentRow = nullptr;
@@ -96,24 +117,34 @@ public:
         }
     }
 
-    void displayGrid(int offset) const {
+    void displayGrid(GridNode* player) const {
         GridNode* currentRow = head;
-        int row = offset;
+        int row = 6;
 
         while (currentRow != nullptr) {
             GridNode* currentCell = currentRow;
-            int col = 0;
+            int col = 14;
 
             while (currentCell != nullptr) {
-                if (currentCell->value == '#') {
+                switch (currentCell->value) {
+                case '#':
                     attron(COLOR_PAIR(1));
                     mvprintw(row, col, "%c", currentCell->value);
-                    attroff(COLOR_PAIR(1));
-                } else {
+                    break;
+
+                case 'P':
+                    attron(COLOR_PAIR(3));
+                    mvprintw(row, col, "%c", currentCell->value);
+                    break;
+
+                default:
                     attron(COLOR_PAIR(2));
                     mvprintw(row, col, "%c", currentCell->value);
-                    attroff(COLOR_PAIR(2));
                 }
+
+                attroff(COLOR_PAIR(1));
+                attroff(COLOR_PAIR(3));
+                attroff(COLOR_PAIR(2));
 
                 currentCell = currentCell->right;
                 col += 2;
@@ -129,12 +160,27 @@ class Game {
     Grid gameGrid;
     int winHeight, winWidth;
     WINDOW* win;
+    GridNode* player;
+    bool running;
 
 public:
     Game(const int rows, const int cols) : gameGrid(rows, cols) {
         gameGrid.initGrid();
         winHeight = winWidth = 50;
         win = newwin(winHeight, winWidth, 0, 0);
+        player = gameGrid.getHead()->right->down;
+        player->value = 'P';
+        running = true;
+    }
+
+    void run() {
+        while (running) {
+            this->displayGame();
+
+            if (getch() == 'q') {
+                running = false;
+            }
+        }
     }
 
     void displayGame() const {
@@ -153,10 +199,14 @@ public:
 
         attroff(COLOR_PAIR(1));
 
-        gameGrid.displayGrid(6);
+        gameGrid.displayGrid(player);
         wrefresh(win);
 
         getch();
+    }
+
+    void playerMove() const {
+
     }
 
     ~Game() {
@@ -297,11 +347,12 @@ int main() {
 
     init_pair(1, COLOR_YELLOW, COLOR_BLACK);  // Yellow boundary + text
     init_pair(2, COLOR_GREEN, COLOR_BLACK);   // Green cells
+    init_pair(3, COLOR_MAGENTA, COLOR_BLACK); // Player
 
     int rows = 15, cols = 15;
     Game game(rows, cols);
 
-    game.displayGame();
+    game.run();
 
     return 0;
 }
