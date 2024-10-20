@@ -8,10 +8,13 @@
 // Data Structures Assignment 2
 
 #include <curses.h>
-#include <stdlib.h>
-#include <ctime>
 #include <iostream>
+
 using namespace std;
+
+int abs(int x) {
+    return (x < 0) ? -x : x;  // If x is negative, return -x; otherwise, return x
+}
 
 class Node {
 public:
@@ -307,11 +310,11 @@ public:
         return head;
     }
 
-    static int getBombThresh(int rows, int cols) {
+    static int getBombThresh(const int rows, const int cols) {
         return static_cast<int>(rows * cols * 0.06);
     }
 
-    static int getCoinThresh(int rows, int cols) {
+    static int getCoinThresh(const int rows, const int cols) {
         return static_cast<int>(rows * cols * 0.09);
     }
 
@@ -326,6 +329,30 @@ public:
 
     int getCols() const {
         return cols;
+    }
+
+    GridNode* getNode(const int targetRow, const int targetCol) {
+        GridNode* currentRow = head;
+        int row = 0;
+
+        while (currentRow != nullptr) {
+            GridNode* currentCell = currentRow;
+            int col = 0;
+
+            while (currentCell != nullptr) {
+                if (row == targetRow && col == targetCol) {
+                    return currentCell;
+                }
+
+                currentCell = currentCell->right;
+                col++;
+            }
+
+            currentRow = currentRow->down;
+            row++;
+        }
+
+        return nullptr;
     }
 
     GridNode* getKey() {
@@ -467,7 +494,28 @@ public:
         }
     }
 
-    void displayGrid(GridNode* player) const {
+    int distance(const GridNode* player, const GridNode* node) {
+        int startX = 0, startY = 0;
+        int targetX = 0, targetY = 0;
+
+        for (int i = 1; i < 15; i++) {
+            for (int j = 1; j < 15; j++) {
+                if (player == getNode(i, j)) {
+                    startX = i;
+                    startY = j;
+                }
+
+                if (node == getNode(i, j)) {
+                    targetX = i;
+                    targetY = j;
+                }
+            }
+        }
+
+        return abs(targetX - startX) + abs(targetY - startY);
+    }
+
+    void displayGrid(GridNode* player) {
         GridNode* currentRow = head;
         int row = 6;
 
@@ -479,38 +527,51 @@ public:
                 move(row, col);
 
                 switch (currentCell->value) {
-                    case '#':
+                    case '#': {
                         attron(COLOR_PAIR(1));
                         addch(currentCell->value);
                         attroff(COLOR_PAIR(1));
                         break;
-                    case 'P':
+                    }
+                    case 'P': {
                         attron(COLOR_PAIR(3));
                         addch(currentCell->value);
                         attroff(COLOR_PAIR(3));
                         break;
-                    case 'K':
+                    }
+                    case 'K': {
                         attron(COLOR_PAIR(5));
                         addch('.'); // Key
                         attroff(COLOR_PAIR(5));
                         break;
-                    case 'O':
+                    }
+                    case 'O': {
                         attron(COLOR_PAIR(4));
                         addch(currentCell->value);
                         attroff(COLOR_PAIR(4));
                         break;
-                    case 'B':
-                        attron(COLOR_PAIR(6));
-                        addch(currentCell->value);
-                        attroff(COLOR_PAIR(6));
+                    }
+                    case 'B': {
+                        int distanceVal = distance(player, currentCell);
+
+                        if (distanceVal > static_cast<int>(rows * 0.3)) {
+                            addch('.');
+                        } else {
+                            attron(COLOR_PAIR(6));
+                            addch('B');
+                            attroff(COLOR_PAIR(6));
+                        }
                         break;
-                    case 'D':
+                    }
+                    case 'D': {
                         attron(COLOR_PAIR(7));
                         addch('.'); // Door
                         attroff(COLOR_PAIR(7));
                         break;
-                    default:
+                    }
+                    default: {
                         addch(currentCell->value);
+                    }
                 }
 
                 currentCell = currentCell->right;
@@ -558,8 +619,8 @@ public:
         gameOver = false;
         gameWon = false;
         score = 0;
-        movesRemaining = 0; // TODO
-        undoes = 0; // TODO
+        movesRemaining = distance(player, key, door, 0) + distance(player, key, door, 2);
+        undoes = 0;
         keyFound = false;
     }
 
@@ -601,7 +662,7 @@ public:
         int index = 0;
 
         if (itemQueue.isEmpty()) {
-            mvprintw(24, 0, "No items collected.");
+            mvprintw(0, 60, "No items collected to display.");
             return;
         }
 
@@ -622,15 +683,13 @@ public:
         int iterations = 0;
         while (running) {
             if (!gameOver) {
-                this->displayGame();        // Display the game grid
-                this->playerMove();          // Handle player movement
-                this->updateCoins(iterations); // Update coins on the grid
+                this->displayGame(iterations);
+                this->playerMove();
+                this->updateCoins(iterations);
                 iterations++;
-
-                if (iterations % 15 == 0) {
-                    iterations = 0;
-                }
             } else {
+                score += movesRemaining;
+
                 if (gameWon) {
                     clear();
                     wclear(win);
@@ -645,8 +704,8 @@ public:
                     copyGame.displayGrid(copyGame.getHead()->right->down);
 
                     attron(COLOR_PAIR(1));
-                    mvprintw(22, 0, "%s", "Initial game state.");
-                    mvprintw(24, 0, "%s", "Press any key to exit.");
+                    mvprintw(26, 0, "%s", "Initial game state.");
+                    mvprintw(27, 0, "%s", "Press any key to exit.");
                     displayItems(itemsCollected);
                     attroff(COLOR_PAIR(1));
 
@@ -656,39 +715,112 @@ public:
                     getch();
                     running = false;
                 } else {
-                    clear();
-                    wclear(win);
-                    refresh();
-                    wrefresh(win);
+                    if (movesRemaining == 0) {
+                        clear();
+                        wclear(win);
+                        refresh();
+                        wrefresh(win);
 
-                    attron(COLOR_PAIR(1));
-                    mvprintw(0, 0, "%s", "Congratulations! You have lost!");
-                    mvprintw(1, 0, "%s", "You ran into a bomb.");
-                    attroff(COLOR_PAIR(1));
+                        attron(COLOR_PAIR(1));
+                        mvprintw(0, 0, "%s", "That didn't work, you lost!");
+                        mvprintw(1, 0, "%s", "You ran out of moves.");
+                        mvprintw(2, 0, "Score: %3d", score);
+                        attroff(COLOR_PAIR(1));
 
-                    copyGame.displayGrid(copyGame.getHead()->right->down);
+                        copyGame.displayGrid(copyGame.getHead()->right->down);
 
-                    attron(COLOR_PAIR(1));
-                    mvprintw(22, 0, "%s", "Initial game state.");
-                    mvprintw(24, 0, "%s", "Press any key to exit.");
-                    displayItems(itemsCollected);
-                    attroff(COLOR_PAIR(1));
+                        attron(COLOR_PAIR(1));
+                        mvprintw(26, 0, "%s", "Initial game state.");
+                        mvprintw(27, 0, "%s", "Press any key to exit.");
+                        displayItems(itemsCollected);
+                        attroff(COLOR_PAIR(1));
 
-                    refresh();
-                    wrefresh(win);
+                        refresh();
+                        wrefresh(win);
 
-                    getch();
-                    running = false;
+                        getch();
+                        running = false;
+                    } else {
+                        clear();
+                        wclear(win);
+                        refresh();
+                        wrefresh(win);
+
+                        attron(COLOR_PAIR(1));
+                        mvprintw(0, 0, "%s", "Congratulations! You have lost!");
+                        mvprintw(1, 0, "%s", "You ran into a bomb.");
+                        mvprintw(2, 0, "Score: %3d", score);
+                        attroff(COLOR_PAIR(1));
+
+                        copyGame.displayGrid(copyGame.getHead()->right->down);
+
+                        attron(COLOR_PAIR(1));
+                        mvprintw(26, 0, "%s", "Initial game state.");
+                        mvprintw(27, 0, "%s", "Press any key to exit.");
+                        displayItems(itemsCollected);
+                        attroff(COLOR_PAIR(1));
+
+                        refresh();
+                        wrefresh(win);
+
+                        getch();
+                        running = false;
+                    }
                 }
             }
         }
+    }
+
+    int distance(const GridNode* player, const GridNode* key, const GridNode* door, const int mode) {
+        int startX = 0, startY = 0;
+        int targetX = 0, targetY = 0;
+        int keyX = 0, keyY = 0;
+
+        for (int i = 1; i < 15; i++) {
+            for (int j = 1; j < 15; j++) {
+                if (gameGrid.getNode(i, j) == player) {
+                    startX = i;
+                    startY = j;
+                }
+
+                if (gameGrid.getNode(i, j) == key && mode == 0) {
+                    targetX = i;
+                    targetY = j;
+                }
+
+                if (gameGrid.getNode(i, j) == key && mode == 2) {
+                    keyX = i;
+                    keyY = j;
+                }
+
+                if (gameGrid.getNode(i, j) == door && (mode == 1 || mode == 2)) {
+                    targetX = i;
+                    targetY = j;
+                }
+            }
+        }
+
+        if (mode == 2) {
+            startX = keyX;
+            startY = keyY;
+        }
+
+        std::cout << "Player: (" << startX << "," << startY << ") ";
+        std::cout << "Target (Key/Door): (" << targetX << "," << targetY << ")" << std::endl;
+
+        /*mvprintw(0, 0, "%3d", startX);
+        mvprintw(1, 0, "%3d", startY);
+        mvprintw(2, 0, "%3d", targetX);
+        mvprintw(3, 0, "%3d", targetY);*/
+
+        return abs(startX - targetX - 2) + abs(startY - targetY - 2);
     }
 
     void updateCoins(int &iterations) {
         int randomValue1 = rand() % 6 + 10;
         int randomValue2 = rand() % 6 + 10;
 
-        if ((randomValue1 >= 10 && randomValue1 < iterations) || (randomValue2 >= 10 && randomValue2 < iterations)) {
+        if ((randomValue1 >= 10 && randomValue1 < (iterations % 16)) || (randomValue2 >= 10 && randomValue2 < (iterations % 16))) {
             iterations = 0;
             int coinCount = 0;
 
@@ -717,7 +849,7 @@ public:
         }
     }
 
-    void displayGame() const {
+    void displayGame(int &iterations) {
         attron(COLOR_PAIR(1));
 
         int offsetRow = 0;
@@ -727,16 +859,30 @@ public:
         switch (gameGrid.getRows()) {
             case 10:
                 mvprintw(offsetRow, 31, "%s", "Easy.");
+                if (iterations == 0) {
+                    movesRemaining += 6;
+                    undoes = 6;
+                }
                 break;
             case 15:
                 mvprintw(offsetRow, 31, "%s", "Medium.");
+                if (iterations == 0) {
+                    movesRemaining += 2;
+                    undoes = 4;
+                }
                 break;
             case 20:
                 mvprintw(offsetRow, 31, "%s", "Hard.");
+                if (iterations == 0) {
+                    movesRemaining += 1;
+                    undoes = 1;
+                }
                 break;
             default:
                 NULL;
         }
+
+        iterations++;
 
         mvprintw(offsetRow + 2, 0, "%s", "Remaining moves: ");
         mvprintw(offsetRow + 2, 16, "%2d", movesRemaining);
@@ -850,6 +996,7 @@ public:
 
         player->value = 'P';
         previousCell->value = '.';
+        movesRemaining--;
     }
 
     void undo() {
