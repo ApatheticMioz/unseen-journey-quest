@@ -158,9 +158,9 @@ class Grid {
     int cols;
 
 public:
-    Grid(const int rows, const int cols) {
-        this->rows = rows;
-        this->cols = cols;
+    Grid() {
+        this->rows = 0;
+        this->cols = 0;
         this->head = nullptr;
     }
 
@@ -185,12 +185,29 @@ public:
         return head;
     }
 
-    void initGrid() {
+    void initGrid(const int difficulty) {
         srand(time(0));
+
+        switch (difficulty) {
+            case 1:
+                rows = cols = 10;
+                break;
+            case 2:
+                rows = cols = 15;
+                break;
+            case 3:
+                rows = cols = 20;
+                break;
+            default:
+                exit(-1);
+        }
 
         GridNode* previousRow = nullptr;
         GridNode* currentRow = nullptr;
         GridNode* previousCell = nullptr;
+
+        int coinThresh = static_cast<int>(rows * cols * 0.09);
+        int bombThresh = static_cast<int>(rows * cols * 0.06);
 
         int xDoor = rand() % 12 + 1, yDoor = rand() % 12 + 1, xKey = rand() % 12 + 1, yKey = rand() % 12 + 1;
         while ((xDoor == 1 && yDoor == 1) || (xKey == 1 && yKey == 1)) {
@@ -217,10 +234,10 @@ public:
                         cell = 'D';
                     } else if (i == xKey && j == yKey) {
                         cell = 'K';
-                    } else if (randomValue >= 30 && randomValue < 40 && bombCount <= 10) {
+                    } else if ((randomValue >= 30 && randomValue < 40 && bombCount < bombThresh) && (i != 2 && j != 1) && (i != 1 && j != 2)) {
                         cell = 'B';
                         bombCount++;
-                    } else if (randomValue >= 85 && randomValue < 100 && coinCount <= 15) {
+                    } else if (randomValue >= 85 && randomValue < 100 && coinCount < coinThresh) {
                         cell = 'O';
                         coinCount++;
                     } else {
@@ -322,16 +339,48 @@ class Game {
     Stack moves;
     bool running;
     int winHeight, winWidth;
+    int coinThresh, bombThresh;
 
 public:
-    Game(const int rows, const int cols) : gameGrid(rows, cols) {
-        gameGrid.initGrid();
+    Game(const int rows, const int cols, int difficulty) {
         winHeight = 100;
         winWidth = 50;
         win = newwin(winHeight, winWidth, 0, 0);
+
+        attron(COLOR_PAIR(1));
+        mvprintw(0, 0, "%s", "Choose your difficulty.");
+        mvprintw(1, 0, "%s", "1 - Easy.");
+        mvprintw(2, 0, "%s", "2 - Medium.");
+        mvprintw(3, 0, "%s", "3 - Hard.");
+        mvprintw(4, 0, "%s", "Anything Else - Crash.");
+        attroff(COLOR_PAIR(1));
+        int choice = getch();
+
+        switch (choice) {
+            case '1':
+                difficulty = 1;
+                break;
+            case '2':
+                difficulty = 2;
+                break;
+            case '3':
+                difficulty = 3;
+                break;
+            default:
+                difficulty = -1;
+                beep();
+        }
+
+        clear();
+        wrefresh(win);
+
+        gameGrid.initGrid(difficulty);
+
         player = gameGrid.getHead()->right->down;
         player->value = 'P';
         running = true;
+        coinThresh = static_cast<int>(rows * cols * 0.09);
+        bombThresh = static_cast<int>(rows * cols * 0.06);
     }
 
     ~Game() {
@@ -340,9 +389,49 @@ public:
     }
 
     void run() {
+        int iterations = 0;
         while (running) {
             this->displayGame();
             this->playerMove();
+            this->updateCoins(iterations);
+            iterations++;
+
+            if (iterations % 15 == 0) {
+                iterations = 0;
+            }
+        }
+    }
+
+    void updateCoins(int &iterations) {
+        int randomValue1 = rand() % 6 + 10;
+        int randomValue2 = rand() % 6 + 10;
+
+        if ((randomValue1 >= 10 && randomValue1 < iterations) || (randomValue2 >= 10 && randomValue2 < iterations)) {
+            iterations = 0;
+            int coinCount = 0;
+
+            GridNode* currentRow = gameGrid.getHead();
+
+            while (currentRow != nullptr) {
+                GridNode* currentCell = currentRow;
+
+                while (currentCell != nullptr) {
+                    int randomNum = rand() % 100 + 1;
+
+                    if (randomNum >= 85 && randomNum < 100 && currentCell->value != 'P' && currentCell->value != 'K' && currentCell->value != 'D' && currentCell->value != 'B' && currentCell->value != '#' && coinCount < coinThresh) {
+                        currentCell->value = 'O';
+                        coinCount++;
+                    } else {
+                        if (currentCell->value == 'O') {
+                            currentCell->value = '.';
+                        }
+                    }
+
+                    currentCell = currentCell->right;
+                }
+
+                currentRow = currentRow->down;
+            }
         }
     }
 
@@ -376,20 +465,25 @@ public:
         }
 
         GridNode* previousCell = player;
+        char newCell;
 
         if (keyPress == KEY_UP && player->up->value != '#' && moves.peek() != 2) {
+            newCell = player->up->value;
             player = player->up;
             moves.push(8);
         }
         else if (keyPress == KEY_LEFT && player->left->value != '#' && moves.peek() != 6) {
+            newCell = player->left->value;
             player = player->left;
             moves.push(4);
         }
         else if (keyPress == KEY_RIGHT && player->right->value != '#' && moves.peek() != 4) {
+            newCell = player->right->value;
             player = player->right;
             moves.push(6);
         }
         else if (keyPress == KEY_DOWN && player->down->value != '#' && moves.peek() != 8) {
+            newCell = player->down->value;
             player = player->down;
             moves.push(2);
         }
@@ -448,11 +542,10 @@ int main() {
     init_pair(7, COLOR_BLUE, COLOR_BLACK); // Door
 
     int rows = 15, cols = 15;
-    Game game(rows, cols);
+    int difficulty = -1;
+    Game game(rows, cols, difficulty);
 
     game.run();
 
     return 0;
 }
-
-
