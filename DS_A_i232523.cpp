@@ -7,9 +7,9 @@
 // Section A
 // Data Structures Assignment 2
 
-
-#include <iostream>
 #include <curses.h>
+#include <stdlib.h>
+#include <ctime>
 using namespace std;
 
 class Node {
@@ -186,15 +186,49 @@ public:
     }
 
     void initGrid() {
+        srand(time(0));
+
         GridNode* previousRow = nullptr;
         GridNode* currentRow = nullptr;
         GridNode* previousCell = nullptr;
+
+        int xDoor = rand() % 12 + 1, yDoor = rand() % 12 + 1, xKey = rand() % 12 + 1, yKey = rand() % 12 + 1;
+        while ((xDoor == 1 && yDoor == 1) || (xKey == 1 && yKey == 1)) {
+            xDoor = rand() % 12 + 1;
+            yDoor = rand() % 12 + 1;
+            xKey = rand() % 12 + 1;
+            yKey = rand() % 12 + 1;
+        }
+
+        int bombCount = 0, coinCount = 0;
 
         for (int i = 0; i < rows; i++) {
             previousCell = nullptr;
             for (int j = 0; j < cols; j++) {
 
-                GridNode* newCell = new GridNode((i == 0 || i == rows - 1 || j == 0 || j == cols - 1) ? '#' : '.');
+                char cell;
+
+                if (i == 0 || j == 0 || j == cols - 1 || i == rows - 1) {
+                    cell = '#';
+                } else {
+                    int randomValue = rand() % 100 + 1;
+
+                    if (i == xDoor && j == yDoor) {
+                        cell = 'D';
+                    } else if (i == xKey && j == yKey) {
+                        cell = 'K';
+                    } else if (randomValue >= 30 && randomValue < 40 && bombCount <= 10) {
+                        cell = 'B';
+                        bombCount++;
+                    } else if (randomValue >= 85 && randomValue < 100 && coinCount <= 15) {
+                        cell = 'O';
+                        coinCount++;
+                    } else {
+                        cell = '.';
+                    }
+                }
+
+                GridNode* newCell = new GridNode(cell);
 
                 if (i == 0 && j == 0) {
                     head = newCell;
@@ -225,21 +259,6 @@ public:
         }
     }
 
-    void displayGridConsole() const {
-        GridNode* currentRow = head;
-        while (currentRow != nullptr) {
-            GridNode* currentCell = currentRow;
-
-            while (currentCell != nullptr) {
-                cout << currentCell->value;
-                currentCell = currentCell->right;
-            }
-
-            cout << endl;
-            currentRow = currentRow->down;
-        }
-    }
-
     void displayGrid(GridNode* player) const {
         GridNode* currentRow = head;
         int row = 6;
@@ -252,20 +271,38 @@ public:
                 move(row, col);
 
                 switch (currentCell->value) {
-                case '#':
-                    attron(COLOR_PAIR(1));
-                    addch(currentCell->value);
-                    attroff(COLOR_PAIR(1));
-                    break;
-                case 'P':
-                    attron(COLOR_PAIR(3));
-                    addch(currentCell->value);
-                    attroff(COLOR_PAIR(3));
-                    break;
-                default:
-                    attron(COLOR_PAIR(2));
-                    addch(currentCell->value);
-                    attroff(COLOR_PAIR(2));
+                    case '#':
+                        attron(COLOR_PAIR(1));
+                        addch(currentCell->value);
+                        attroff(COLOR_PAIR(1));
+                        break;
+                    case 'P':
+                        attron(COLOR_PAIR(3));
+                        addch(currentCell->value);
+                        attroff(COLOR_PAIR(3));
+                        break;
+                    case 'K':
+                        attron(COLOR_PAIR(5));
+                        addch(currentCell->value);
+                        attroff(COLOR_PAIR(5));
+                        break;
+                    case 'O':
+                        attron(COLOR_PAIR(4));
+                        addch(currentCell->value);
+                        attroff(COLOR_PAIR(4));
+                        break;
+                    case 'B':
+                        attron(COLOR_PAIR(6));
+                        addch(currentCell->value);
+                        attroff(COLOR_PAIR(6));
+                        break;
+                    case 'D':
+                        attron(COLOR_PAIR(7));
+                        addch(currentCell->value);
+                        attroff(COLOR_PAIR(7));
+                        break;
+                    default:
+                        addch(currentCell->value);
                 }
 
                 currentCell = currentCell->right;
@@ -340,19 +377,19 @@ public:
 
         GridNode* previousCell = player;
 
-        if (keyPress == KEY_UP && player->up->value != '#') {
+        if (keyPress == KEY_UP && player->up->value != '#' && moves.peek() != 2) {
             player = player->up;
             moves.push(8);
         }
-        else if (keyPress == KEY_LEFT && player->left->value != '#') {
+        else if (keyPress == KEY_LEFT && player->left->value != '#' && moves.peek() != 6) {
             player = player->left;
             moves.push(4);
         }
-        else if (keyPress == KEY_RIGHT && player->right->value != '#') {
+        else if (keyPress == KEY_RIGHT && player->right->value != '#' && moves.peek() != 4) {
             player = player->right;
             moves.push(6);
         }
-        else if (keyPress == KEY_DOWN && player->down->value != '#') {
+        else if (keyPress == KEY_DOWN && player->down->value != '#' && moves.peek() != 8) {
             player = player->down;
             moves.push(2);
         }
@@ -372,20 +409,20 @@ public:
         GridNode* previousCell = player;
 
         switch (moves.peek()) {
-        case 8:
-            player = player->down;
-            break;
-        case 4:
-            player = player->right;
-            break;
-        case 6:
-            player = player->left;
-            break;
-        case 2:
-            player = player->up;
-            break;
-        default:
-            return;
+            case 8:
+                player = player->down;
+                break;
+            case 4:
+                player = player->right;
+                break;
+            case 6:
+                player = player->left;
+                break;
+            case 2:
+                player = player->up;
+                break;
+            default:
+                return;
         }
 
         player->value = 'P';
@@ -405,6 +442,10 @@ int main() {
     init_pair(1, COLOR_GREEN, COLOR_BLACK);  // Yellow boundary + text
     init_pair(2, COLOR_WHITE, COLOR_BLACK);   // Cells
     init_pair(3, COLOR_MAGENTA, COLOR_BLACK); // Player
+    init_pair(4, COLOR_YELLOW, COLOR_BLACK); // Coin
+    init_pair(5, COLOR_CYAN, COLOR_BLACK); // Key
+    init_pair(6, COLOR_RED, COLOR_BLACK); // Bomb
+    init_pair(7, COLOR_BLUE, COLOR_BLACK); // Door
 
     int rows = 15, cols = 15;
     Game game(rows, cols);
