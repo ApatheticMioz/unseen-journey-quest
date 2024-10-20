@@ -979,6 +979,7 @@ public:
                 ch = 'O';
                 score += 2;
                 undoes++;
+                Grid::decCoinThresh();
             } else if (key == player) {
                 keyFound = true;
                 ch = 'K';
